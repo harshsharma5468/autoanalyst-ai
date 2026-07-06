@@ -1,0 +1,2 @@
+-- LangGraph's PostgresSaver handles its own table creation via checkpointer.setup()
+-- Add any custom application tables here if needed in the future.

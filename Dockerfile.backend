@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+# System packages needed by:
+#   libpq-dev      → psycopg (PostgreSQL)
+#   gcc / g++      → scikit-learn, statsmodels native extensions
+#   libgomp1       → OpenMP (required by scikit-learn on Linux)
+#   libffi-dev     → cryptography / some ML libs
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libpq-dev \
+        gcc \
+        g++ \
+        libgomp1 \
+        libffi-dev \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies first (cached layer — only rebuilds on requirements change)
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the full project
+COPY . .
+
+EXPOSE 8000
+
+# Use --workers 1 to keep the in-memory AutoAnalyst session store consistent.
+# Add --reload for development; remove for production.
+CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

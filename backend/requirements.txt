@@ -1,0 +1,49 @@
+# ── Core agent framework ────────────────────────────────────────────────────
+langgraph>=0.2.0
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-anthropic>=0.1.0
+langchain-community>=0.2.0
+
+# ── External tools ───────────────────────────────────────────────────────────
+tavily-python>=0.3.0
+e2b-code-interpreter>=0.0.10
+
+# ── API / server ─────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9          # required for FastAPI file uploads
+sse-starlette>=1.8.0
+
+# ── Database ─────────────────────────────────────────────────────────────────
+psycopg[binary]>=3.1.0
+psycopg2-binary>=2.9.0
+langgraph-checkpoint-postgres>=1.0.0
+sqlalchemy>=2.0.0
+
+# ── Config / env ─────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+
+# ── Data processing ──────────────────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.26.0
+
+# ── AutoAnalyst: structured file formats ────────────────────────────────────
+openpyxl>=3.1.0          # .xlsx read/write
+xlrd>=2.0.0              # .xls read (legacy Excel)
+
+# ── AutoAnalyst: unstructured text ───────────────────────────────────────────
+pypdf>=4.0.0             # PDF text extraction
+python-docx>=1.1.0       # .docx text extraction
+
+# ── AutoAnalyst: visualisation ───────────────────────────────────────────────
+matplotlib>=3.8.0
+plotly>=5.20.0
+
+# ── AutoAnalyst: ML / forecasting ────────────────────────────────────────────
+scikit-learn>=1.4.0
+statsmodels>=0.14.0
+
+# ── Image handling (already present; pinned for clarity) ─────────────────────
+pillow>=10.0.0
