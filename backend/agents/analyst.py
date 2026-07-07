@@ -2,6 +2,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from backend.config import get_llm
 from backend.tools.code_executor import run_code_in_sandbox
 from backend.graph.state import AgentState
+from backend.graph.run_metadata import append_warning, mark_node_complete
 import re
 
 ANALYST_PROMPT = """You are a Data Analyst Agent. You write and execute Python code to analyze data.
@@ -27,8 +28,14 @@ def analyst_node(state: AgentState) -> AgentState:
 
     plan = state["plan"]
     findings = state["research_findings"]
+    preferences = state.get("user_preferences", {})
     feedback = state.get("critic_feedback", "")
     feedback_note = f"\n\nCritic feedback to address: {feedback}" if feedback else ""
+    chart_instruction = (
+        "Generate a chart when it clarifies the answer."
+        if preferences.get("include_chart", True)
+        else "Do not generate charts unless absolutely necessary."
+    )
 
     response = llm.invoke([
         HumanMessage(content=ANALYST_PROMPT),
@@ -36,6 +43,7 @@ def analyst_node(state: AgentState) -> AgentState:
             f"Research Plan:\n{plan}\n\n"
             f"Research Findings:\n{findings}"
             f"{feedback_note}\n\n"
+            f"Chart preference: {chart_instruction}\n"
             "Write the Python analysis code now."
         )),
     ])
@@ -43,6 +51,7 @@ def analyst_node(state: AgentState) -> AgentState:
     code = _extract_code(response.content)
     analysis_result = response.content
     chart_image = ""
+    warnings = list(state.get("warnings", []))
 
     if code:
         execution = run_code_in_sandbox(code)
@@ -55,10 +64,16 @@ def analyst_node(state: AgentState) -> AgentState:
             output_parts.append(f"Error:\n{execution['error']}")
         analysis_result = response.content + "\n\n" + "\n".join(output_parts)
         chart_image = execution.get("chart_image", "")
+        if execution.get("error") or execution.get("stderr"):
+            warnings = append_warning(state, "Analyst code executed with warnings or errors.")
+    else:
+        warnings = append_warning(state, "Analyst did not produce executable Python code.")
 
     return {
         **state,
         "analysis_result": analysis_result,
         "chart_image": chart_image,
+        "warnings": warnings,
+        "run_metrics": mark_node_complete(state, generated_code=bool(code)),
         "messages": state["messages"] + [AIMessage(content=f"**Analysis Result:**\n{analysis_result}", name="analyst")],
     }

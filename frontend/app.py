@@ -120,6 +120,25 @@ st.markdown(
         margin-bottom: 1rem;
     }
 
+    .research-panel {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 1rem 1.2rem;
+        margin: 0.7rem 0 1rem 0;
+    }
+    .research-chip {
+        display: inline-block;
+        background: #E0F2FE;
+        border: 1px solid #BAE6FD;
+        color: #075985;
+        border-radius: 999px;
+        padding: 0.2rem 0.65rem;
+        margin: 0.15rem 0.25rem 0.15rem 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+
     /* ── Chat bubbles ────────────────────────────────────── */
     [data-testid="stChatMessage"] {
         border-radius: 12px;
@@ -195,6 +214,77 @@ def _show_b64_image(b64_str: str, caption: str = "") -> None:
 import base64   # needed by _show_b64_image (also used throughout)
 
 _PLOTLY_CFG = {"displayModeBar": False}
+
+
+def _render_research_metadata(
+    quality_score: float | None,
+    sources: list[dict] | None,
+    run_metrics: dict | None,
+    warnings: list[str] | None,
+) -> None:
+    """Render compact observability metadata for the multi-agent research run."""
+    sources = sources or []
+    run_metrics = run_metrics or {}
+    warnings = warnings or []
+
+    if quality_score is not None or sources or run_metrics or warnings:
+        st.markdown('<p class="section-heading">Research Run Intelligence</p>', unsafe_allow_html=True)
+
+    if quality_score is not None:
+        q1, q2, q3, q4 = st.columns(4)
+        q1.metric("Quality signal", f"{quality_score:.0%}")
+        q2.metric("Sources", len(sources))
+        q3.metric("Revisions", run_metrics.get("revision_count", 0))
+        q4.metric("Search rounds", run_metrics.get("search_rounds", 0))
+
+    if warnings:
+        with st.expander("Run warnings"):
+            for warning in warnings:
+                st.warning(warning)
+
+    if sources:
+        with st.expander("Sources used"):
+            for idx, source in enumerate(sources, start=1):
+                title = source.get("title") or source.get("url") or f"Source {idx}"
+                url = source.get("url", "")
+                if url:
+                    st.markdown(f"{idx}. [{title}]({url})")
+                else:
+                    st.markdown(f"{idx}. {title}")
+
+    if run_metrics:
+        with st.expander("Run details"):
+            st.json(run_metrics)
+
+
+def _render_research_control_panel(controls: dict) -> None:
+    depth = controls["research_depth"]
+    style = controls["report_style"]
+    chart = "On" if controls["include_chart"] else "Off"
+    max_sources = controls["max_sources"]
+    depth_note = {
+        "quick": "Fast scan with fewer searches",
+        "standard": "Balanced research and analysis",
+        "deep": "More search rounds and stronger evidence coverage",
+    }.get(depth, "Balanced research and analysis")
+
+    st.markdown(
+        f"""
+        <div class="research-panel">
+            <div style="font-weight:700;color:#1E293B;margin-bottom:0.4rem">
+                Advanced research mode
+            </div>
+            <span class="research-chip">Depth: {depth.title()}</span>
+            <span class="research-chip">Style: {style.title()}</span>
+            <span class="research-chip">Charts: {chart}</span>
+            <span class="research-chip">Sources: up to {max_sources}</span>
+            <div style="color:#64748B;font-size:0.9rem;margin-top:0.55rem">
+                {depth_note}. These settings are sent to the backend agents with every query.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1153,17 +1243,56 @@ else:
     )
 
     _stream = st.sidebar.toggle("Stream agent thoughts", value=True)
+    st.sidebar.markdown("### Research controls")
+    _depth_label = st.sidebar.selectbox(
+        "Depth",
+        options=["Quick", "Standard", "Deep"],
+        index=1,
+    )
+    _style_label = st.sidebar.selectbox(
+        "Report style",
+        options=["Executive", "Technical", "Bullet"],
+        index=0,
+    )
+    _include_chart = st.sidebar.toggle("Generate chart", value=True)
+    _max_sources = st.sidebar.slider("Max sources", min_value=3, max_value=15, value=8)
+    _research_controls = {
+        "research_depth": _depth_label.lower(),
+        "report_style": _style_label.lower(),
+        "include_chart": _include_chart,
+        "max_sources": _max_sources,
+    }
+    _render_research_control_panel(_research_controls)
+
+    _examples = [
+        "Analyze the latest AI chip market landscape and estimate Nvidia's market share trend.",
+        "Compare top EV adoption countries and project growth to 2030 with a chart.",
+        "Research solid-state battery bottlenecks, key players, and expected CAGR.",
+    ]
+    with st.expander("Example research prompts"):
+        for _idx, _example in enumerate(_examples):
+            if st.button(_example, key=f"research_example_{_idx}", use_container_width=True):
+                st.session_state._pending_research_query = _example
+                st.rerun()
 
     for _entry in st.session_state.history:
         with st.chat_message(_entry["role"]):
             st.markdown(_entry["content"])
+            if any(_entry.get(k) for k in ("quality_score", "sources", "run_metrics", "warnings")):
+                _render_research_metadata(
+                    _entry.get("quality_score"),
+                    _entry.get("sources", []),
+                    _entry.get("run_metrics", {}),
+                    _entry.get("warnings", []),
+                )
             if _entry.get("chart"):
                 try:
                     _show_b64_image(_entry["chart"])
                 except Exception:
                     pass
 
-    _query = st.chat_input("Ask a complex research question…")
+    _pending_query = st.session_state.pop("_pending_research_query", None)
+    _query = _pending_query or st.chat_input("Ask a complex research question…")
 
     if _query:
         st.session_state.history.append({"role": "user", "content": _query})
@@ -1178,6 +1307,10 @@ else:
                 _node_outputs: dict = {}
                 _final_report = ""
                 _chart_b64    = ""
+                _quality_score = None
+                _sources       = []
+                _run_metrics   = {}
+                _warnings      = []
 
                 with st.spinner("Agents working…"):
                     try:
@@ -1186,6 +1319,7 @@ else:
                             json={
                                 "query":      _query,
                                 "session_id": st.session_state.session_id,
+                                **_research_controls,
                             },
                             stream=True,
                             timeout=300,
@@ -1206,10 +1340,20 @@ else:
                                 if "error" in _d:
                                     st.error(_d["error"])
                                     break
+                                if _d.get("session_id"):
+                                    st.session_state.session_id = _d["session_id"]
                                 _node    = _d.get("node", "unknown")
                                 _content = _d.get("content", "")
                                 if _d.get("chart_image"):
                                     _chart_b64 = _d["chart_image"]
+                                if _d.get("quality_score"):
+                                    _quality_score = float(_d["quality_score"])
+                                if _d.get("sources"):
+                                    _sources = _d["sources"]
+                                if _d.get("run_metrics"):
+                                    _run_metrics = _d["run_metrics"]
+                                if _d.get("warnings"):
+                                    _warnings = _d["warnings"]
                                 _node_outputs.setdefault(_node, []).append(_content)
                                 with _thought_box:
                                     for _n, _parts in _node_outputs.items():
@@ -1230,6 +1374,7 @@ else:
 
                 if _final_report:
                     _final_holder.markdown(_final_report)
+                    _render_research_metadata(_quality_score, _sources, _run_metrics, _warnings)
                 if _chart_b64:
                     try:
                         _show_b64_image(_chart_b64, caption="Generated Chart")
@@ -1244,6 +1389,7 @@ else:
                             json={
                                 "query":      _query,
                                 "session_id": st.session_state.session_id,
+                                **_research_controls,
                             },
                             timeout=300,
                         )
@@ -1252,7 +1398,12 @@ else:
                         st.session_state.session_id = _d["session_id"]
                         _final_report = _d["report"]
                         _chart_b64    = _d.get("chart_image", "")
+                        _quality_score = _d.get("quality_score")
+                        _sources       = _d.get("sources", [])
+                        _run_metrics   = _d.get("run_metrics", {})
+                        _warnings      = _d.get("warnings", [])
                         st.markdown(_final_report)
+                        _render_research_metadata(_quality_score, _sources, _run_metrics, _warnings)
                         if _chart_b64:
                             _show_b64_image(_chart_b64, caption="Generated Chart")
                     except requests.exceptions.ConnectionError:
@@ -1264,4 +1415,8 @@ else:
                     "role":    "assistant",
                     "content": _final_report,
                     "chart":   _chart_b64,
+                    "quality_score": _quality_score,
+                    "sources": _sources,
+                    "run_metrics": _run_metrics,
+                    "warnings": _warnings,
                 })

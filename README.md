@@ -171,6 +171,20 @@ streamlit run frontend/app.py
 
 Multi-agent systems are notoriously difficult to debug. This project is instrumented with **LangSmith** to trace every LLM call, tool execution, and state transition across the graph.
 
+The backend also returns lightweight run metadata directly in `/analyze` and `/analyze/stream` responses:
+
+- `quality_score` — heuristic 0-1 signal for source coverage, analysis output, critic verdict, and chart generation.
+- `sources` — de-duplicated URLs extracted from researcher output.
+- `run_metrics` — timestamps, search rounds, revision count, source count, and chart availability.
+- `warnings` — non-fatal issues such as missing executable analysis code or sandbox execution errors.
+
+The Streamlit Research Agent sidebar includes visible controls for:
+
+- Research depth: `quick`, `standard`, or `deep`.
+- Report style: `executive`, `technical`, or `bullet`.
+- Chart generation toggle.
+- Maximum number of sources to surface.
+
 Set these in your `.env` to enable tracing:
 
 ```bash

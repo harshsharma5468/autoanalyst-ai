@@ -1,6 +1,7 @@
 from langchain_core.messages import HumanMessage, AIMessage
 from backend.config import get_llm
 from backend.graph.state import AgentState
+from backend.graph.run_metadata import mark_node_complete
 
 SUPERVISOR_PROMPT = """You are a Supervisor Agent in a multi-agent research system.
 Your job is to analyze the user's query and produce a clear, numbered, step-by-step research and analysis plan.
@@ -20,6 +21,7 @@ Rules:
 def supervisor_node(state: AgentState) -> AgentState:
     llm = get_llm(temperature=0)
     query = state["original_query"]
+    preferences = state.get("user_preferences", {})
 
     feedback_section = ""
     if state.get("critic_feedback"):
@@ -27,12 +29,18 @@ def supervisor_node(state: AgentState) -> AgentState:
 
     response = llm.invoke([
         HumanMessage(content=SUPERVISOR_PROMPT),
-        HumanMessage(content=f"User Query: {query}{feedback_section}"),
+        HumanMessage(content=(
+            f"User Query: {query}\n\n"
+            f"User Controls: {preferences}\n"
+            "Adapt the plan depth, chart requirements, and report style to these controls."
+            f"{feedback_section}"
+        )),
     ])
 
     plan = response.content
     return {
         **state,
         "plan": plan,
+        "run_metrics": mark_node_complete(state),
         "messages": state["messages"] + [AIMessage(content=f"**Supervisor Plan:**\n{plan}", name="supervisor")],
     }

@@ -2,6 +2,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.output_parsers import JsonOutputParser
 from backend.config import get_llm
 from backend.graph.state import AgentState
+from backend.graph.run_metadata import mark_node_complete
 
 CRITIC_PROMPT = """You are a Critic Agent. Your job is to evaluate whether the research and analysis fully satisfies the user's original query.
 
@@ -47,6 +48,7 @@ def critic_node(state: AgentState) -> AgentState:
         "critic_verdict": verdict,
         "critic_feedback": feedback,
         "revision_count": revision_count + 1,
+        "run_metrics": mark_node_complete(state),
         "messages": state["messages"] + [
             AIMessage(
                 content=f"**Critic Verdict:** {verdict.upper()}\n{feedback}",

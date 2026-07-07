@@ -1,4 +1,4 @@
-from typing import Annotated, TypedDict, Literal
+from typing import Annotated, Any, TypedDict, Literal
 from langgraph.graph.message import add_messages
 
 
@@ -21,3 +21,13 @@ class AgentState(TypedDict):
     revision_count: int
     # Base64-encoded chart image (if any) from the Analyst
     chart_image: str
+    # Structured source URLs extracted from research output
+    sources: list[dict[str, str]]
+    # Lightweight run metadata for API/UI observability
+    run_metrics: dict[str, Any]
+    # Non-fatal issues surfaced to the user
+    warnings: list[str]
+    # Heuristic quality score from 0.0 to 1.0
+    quality_score: float
+    # User-selected controls for research depth, style, and visuals
+    user_preferences: dict[str, Any]
